@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "separator": " | ",
+  "defaultTimeoutMs": 200,
+  "onError": "silent",
+  "fallback": "default",
+  "sources": [
+    {
+      "id": "model",
+      "label": "model",
+      "command": "jq -r '.model.display_name // \"claude\"'",
+      "order": 10,
+      "passStdin": true
+    },
+    {
+      "id": "git-branch",
+      "label": "git",
+      "command": "cwd=$(jq -r '.workspace.current_dir // .cwd // \"\"'); cd \"$cwd\" 2>/dev/null && git symbolic-ref --short HEAD 2>/dev/null || true",
+      "order": 20,
+      "passStdin": true,
+      "timeoutMs": 150
+    },
+    {
+      "id": "context",
+      "label": "ctx",
+      "command": "pct=$(jq -r '.context_window.used_percentage // empty'); [[ -n \"$pct\" ]] && printf '%s%% ctx' \"$pct\"",
+      "order": 30,
+      "passStdin": true
+    },
+    {
+      "id": "caveman",
+      "label": "CAVEMAN",
+      "command": "bash ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/cache/caveman/caveman/*/hooks/caveman-statusline.sh",
+      "order": 40,
+      "passStdin": true,
+      "timeoutMs": 150,
+      "enabled": false
+    }
+  ]
+}
