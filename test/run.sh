@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# End-to-end harness for bin/statusline-wrapper.
+#
+# Each test writes a config to a tmpdir, pipes the fixture JSON through the
+# wrapper with that config, and compares stdout to an expected string.
+# Stderr is suppressed so the starter-config bootstrap message does not
+# leak into golden comparisons.
+
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+WRAPPER="$ROOT/bin/statusline-wrapper"
+FIXTURE="$ROOT/test/fixtures/sample-stdin.json"
+FAKES="$ROOT/test/fakes"
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+PASS=0
+FAIL=0
+
+run() {
+  local name="$1"
+  local cfg_json="$2"
+  local expected="$3"
+  local cfg="$TMP/$name.json"
+  printf '%s' "$cfg_json" >"$cfg"
+  local actual
+  actual=$(SW_CONFIG_PATH="$cfg" SW_LOG_PATH="$TMP/log" "$WRAPPER" <"$FIXTURE" 2>/dev/null)
+  if [[ "$actual" == "$expected" ]]; then
+    printf 'PASS %s\n' "$name"
+    PASS=$((PASS + 1))
+  else
+    printf 'FAIL %s\n  expected: %q\n  actual:   %q\n' "$name" "$expected" "$actual"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+run "empty-fallback" \
+  '{"version":1,"separator":" | ","fallback":"default","sources":[]}' \
+  'Opus 4.7 | foo | 42% ctx'
+
+run "two-sources" \
+  '{"version":1,"separator":" | ","sources":[
+     {"id":"a","command":"echo hello","order":10},
+     {"id":"b","command":"echo world","order":20}
+   ]}' \
+  'hello | world'
+
+run "order-respected" \
+  '{"version":1,"separator":" ","sources":[
+     {"id":"x","command":"echo c","order":30},
+     {"id":"y","command":"echo a","order":10},
+     {"id":"z","command":"echo b","order":20}
+   ]}' \
+  'a b c'
+
+run "error-silent" \
+  '{"version":1,"separator":" | ","onError":"silent","sources":[
+     {"id":"a","command":"echo first","order":10},
+     {"id":"bad","command":"false","order":20},
+     {"id":"c","command":"echo last","order":30}
+   ]}' \
+  'first | last'
+
+run "error-label" \
+  '{"version":1,"separator":" | ","onError":"label","sources":[
+     {"id":"a","label":"A","command":"echo first","order":10},
+     {"id":"bad","label":"BAD","command":"false","order":20},
+     {"id":"c","label":"C","command":"echo last","order":30}
+   ]}' \
+  'first | [BAD:err] | last'
+
+run "timeout-enforcement" \
+  "$(printf '{"version":1,"separator":" ","onError":"label","sources":[
+     {"id":"fast","label":"F","command":"echo fast","order":10},
+     {"id":"slow","label":"S","command":"bash %s","order":20,"timeoutMs":100}
+   ]}' "$FAKES/slow.sh")" \
+  'fast [S:err]'
+
+run "empty-output-omitted" \
+  '{"version":1,"separator":" | ","sources":[
+     {"id":"a","command":"echo first","order":10},
+     {"id":"empty","command":"true","order":20},
+     {"id":"c","command":"echo last","order":30}
+   ]}' \
+  'first | last'
+
+run "passStdin-false" \
+  "$(printf '{"version":1,"separator":" ","sources":[
+     {"id":"with","command":"bash %s","passStdin":true,"order":10},
+     {"id":"without","command":"bash %s","passStdin":false,"order":20}
+   ]}' "$FAKES/has-stdin.sh" "$FAKES/has-stdin.sh")" \
+  'got none'
+
+run "ansi-preserved" \
+  "$(printf '{"version":1,"separator":" ","sources":[
+     {"id":"red","command":"bash %s","order":10},
+     {"id":"plain","command":"echo plain","order":20}
+   ]}' "$FAKES/ansi.sh")" \
+  "$(printf '\033[31mRED\033[0m plain')"
+
+run "disabled-source-skipped" \
+  '{"version":1,"separator":" | ","sources":[
+     {"id":"a","command":"echo first","order":10},
+     {"id":"off","command":"echo nope","order":15,"enabled":false},
+     {"id":"c","command":"echo last","order":20}
+   ]}' \
+  'first | last'
+
+printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+[[ "$FAIL" -eq 0 ]]
