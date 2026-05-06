@@ -1,4 +1,140 @@
 # Claude plugin for wrapping statuslines
 
-This is a plugin for [Claude Code](https://claude.com/code) which enables
-statuslines from multiple plugins to be configured and used simultaneously.
+A plugin for [Claude Code](https://claude.com/code) that composes the
+statuslines of multiple other plugins into a single `statusLine.command`
+output.
+
+Claude Code only accepts one `statusLine.command`. This wrapper sits in
+that slot and fans out to as many sources (plugin scripts, inline
+commands, anything readable on stdout) as you configure, joining their
+outputs in declaration order with a configurable separator.
+
+## Install
+
+Install via the Claude Code plugin system, then point your settings at
+the wrapper executable:
+
+```jsonc
+// ~/.claude/settings.json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "${CLAUDE_PLUGIN_ROOT}/bin/statusline-wrapper"
+  }
+}
+```
+
+If `${CLAUDE_PLUGIN_ROOT}` is not exported in your environment, use the
+absolute path that `claude plugin list` reports for `statusline-wrapper`.
+
+On first invocation the wrapper writes a starter config to
+`~/.claude/statusline-wrapper.json` (or `${CLAUDE_CONFIG_DIR}/...`) with
+zero sources. With no sources, the wrapper falls back to a built-in line
+showing `<model> | <cwd-basename> | <ctx>% ctx` so you see something
+immediately.
+
+## Configure
+
+Edit `~/.claude/statusline-wrapper.json`:
+
+```jsonc
+{
+  "version": 1,
+  "separator": " | ",
+  "defaultTimeoutMs": 200,
+  "onError": "silent",          // silent | label | placeholder
+  "fallback": "default",        // default | empty
+  "sources": [
+    {
+      "id": "model",
+      "label": "model",
+      "command": "jq -r '.model.display_name // \"claude\"'",
+      "order": 10,
+      "passStdin": true
+    },
+    {
+      "id": "git-branch",
+      "label": "git",
+      "command": "cwd=$(jq -r '.workspace.current_dir // .cwd // \"\"'); cd \"$cwd\" 2>/dev/null && git symbolic-ref --short HEAD 2>/dev/null || true",
+      "order": 20,
+      "timeoutMs": 150
+    }
+  ]
+}
+```
+
+A more complete annotated example, including a disabled entry that wraps
+the [caveman](https://github.com/anthropics/claude-code-plugins) plugin's
+statusline, lives at `examples/statusline-wrapper.json`.
+
+### Source contract
+
+Each source command:
+
+- runs as `bash -c "<command>"`;
+- receives the Claude Code statusline JSON on stdin (unless
+  `passStdin: false`);
+- must write its piece of the statusline to stdout (single line, ANSI +
+  OSC 8 hyperlinks OK);
+- must finish within `timeoutMs` (default 200, falls back to
+  `defaultTimeoutMs` when absent);
+- empty stdout with exit 0 is treated as an intentional empty slot and
+  silently dropped;
+- non-zero exit is reported per `onError`:
+  - `silent` (default) — slot omitted;
+  - `label` — slot replaced with `[<label>:err]`;
+  - `placeholder` — slot replaced with `?`.
+
+Stderr from sources is appended to `~/.claude/statusline-wrapper.log`
+(rotated at 64 KB) and never printed to the terminal.
+
+### Field reference
+
+| Field | Default | Notes |
+|---|---|---|
+| `version` | required | currently `1` |
+| `separator` | `" "` | string between source outputs |
+| `defaultTimeoutMs` | `200` | applied when a source omits `timeoutMs` |
+| `onError` | `"silent"` | `silent` \| `label` \| `placeholder` |
+| `fallback` | `"default"` | when no sources produce output: `default` runs the built-in line; `empty` emits nothing |
+| `sources[].id` | required | stable identifier; used in log lines |
+| `sources[].label` | falls back to `id` | rendered when `onError: label` |
+| `sources[].command` | required | shell command run via `bash -c` |
+| `sources[].order` | `0` | sparse integers (10, 20, …) recommended |
+| `sources[].enabled` | `true` | set `false` to keep an entry without running it |
+| `sources[].timeoutMs` | inherits `defaultTimeoutMs` | per-source ceiling |
+| `sources[].passStdin` | `true` | `false` redirects the source's stdin to `/dev/null` |
+
+## How it runs
+
+`bin/statusline-wrapper`:
+
+1. tees Claude Code's JSON stdin into a temp file;
+2. loads `~/.claude/statusline-wrapper.json` (writes a starter config if
+   missing; refuses symlinks);
+3. fans out enabled sources in parallel (`& … wait`), each bounded by
+   `timeout`/`gtimeout` (and unbounded with a logged warning if neither
+   is on PATH);
+4. joins their captured stdouts in `order` with `separator`;
+5. falls back to `lib/default-source.sh` when zero sources produce
+   output and `fallback: default`.
+
+Wall time is `max(source_i)`, not `sum`. Keep individual sources fast
+(<50 ms) and avoid Node/Python cold starts on the render path.
+
+## Tests
+
+```sh
+test/run.sh
+```
+
+Drives the wrapper end-to-end against ten cases: starter-config
+bootstrap, ordering, silent vs labeled errors, timeout enforcement,
+empty-output handling, `passStdin` routing, ANSI preservation, and
+disabled-source skipping. Exits non-zero on any failure.
+
+## Status
+
+Pre-1.0. The render path (this README) is implemented; a
+`/statusline-wrapper:configure` slash command for guided setup is not
+yet shipped — edit the config file by hand for now.
