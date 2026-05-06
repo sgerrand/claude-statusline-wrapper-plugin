@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# statusline-wrapper entrypoint. Set as statusLine.command in
+# ~/.claude/settings.json.
+#
+# Reads JSON on stdin from Claude Code, fans out to configured sources in
+# parallel, and emits a single composed line on stdout.
+
+set -uo pipefail
+
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+
+# shellcheck source=../lib/config.sh
+source "$PLUGIN_ROOT/lib/config.sh"
+# shellcheck source=../lib/compose.sh
+source "$PLUGIN_ROOT/lib/compose.sh"
+
+SW_TMPS=()
+sw_cleanup() {
+  if (( ${#SW_TMPS[@]} > 0 )); then
+    rm -rf "${SW_TMPS[@]}" 2>/dev/null
+  fi
+}
+trap sw_cleanup EXIT
+
+stdin_file=$(mktemp)
+SW_TMPS+=("$stdin_file")
+cat >"$stdin_file"
+
+run_default() {
+  bash "$PLUGIN_ROOT/lib/default-source.sh" <"$stdin_file"
+}
+
+if ! sw_load_config; then
+  run_default
+  exit 0
+fi
+
+if [[ -z "${SW_SOURCES_TSV:-}" ]]; then
+  if [[ "${SW_FALLBACK:-default}" == "default" ]]; then
+    run_default
+  fi
+  exit 0
+fi
+
+if ! sw_compose "$stdin_file"; then
+  if [[ "${SW_FALLBACK:-default}" == "default" ]]; then
+    run_default
+  fi
+fi
