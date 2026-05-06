@@ -77,7 +77,7 @@ sw_load_config() {
         (.label // .id // ""),
         (.command // ""),
         (.timeoutMs // $defaultT),
-        (if (.passStdin // true) then "1" else "0" end)
+        (if .passStdin == false then "0" else "1" end)
       ] | @tsv
   ' "$SW_CONFIG_PATH")
 }
