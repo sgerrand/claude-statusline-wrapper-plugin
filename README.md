@@ -35,7 +35,14 @@ immediately.
 
 ## Configure
 
-Edit `~/.claude/statusline-wrapper.json`:
+Run `/statusline-wrapper:configure` from inside Claude Code for an
+interactive setup that scans `~/.claude/plugins/cache/` for candidate
+statusline scripts, lets you pick which to enable, and writes the
+config atomically. If the `autoWireSettings` userConfig flag is `true`,
+it also patches `~/.claude/settings.json` for you; otherwise it prints
+the snippet to paste.
+
+You can also edit `~/.claude/statusline-wrapper.json` directly:
 
 ```jsonc
 {
@@ -135,6 +142,5 @@ disabled-source skipping. Exits non-zero on any failure.
 
 ## Status
 
-Pre-1.0. The render path (this README) is implemented; a
-`/statusline-wrapper:configure` slash command for guided setup is not
-yet shipped — edit the config file by hand for now.
+Pre-1.0. Render path and `/statusline-wrapper:configure` are
+implemented; output caching and `--rescan` are not.
