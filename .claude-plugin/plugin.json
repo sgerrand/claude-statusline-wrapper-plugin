@@ -1,0 +1,13 @@
+{
+  "name": "statusline-wrapper",
+  "version": "0.1.0",
+  "description": "Compose statuslines from multiple Claude Code plugins into a single statusLine output.",
+  "userConfig": {
+    "autoWireSettings": {
+      "type": "boolean",
+      "title": "Auto-wire statusLine.command",
+      "description": "If true, /statusline-wrapper:configure will write statusLine.command into ~/.claude/settings.json automatically. Default false (print only).",
+      "default": false
+    }
+  }
+}
