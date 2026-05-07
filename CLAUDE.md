@@ -8,6 +8,11 @@ A Claude Code plugin that takes the single `statusLine.command` slot and
 multiplexes it across many user-configured sources. End-user docs are in
 `README.md` — this file is for working *on* the plugin.
 
+The interactive setup ships as a Claude Code skill at
+`skills/configure/SKILL.md` (canonical form per current plugin docs).
+Auto-discovery surfaces it as `/statusline-wrapper:configure`. Don't
+move it back to `commands/` — `commands/` is documented as legacy.
+
 ## Commands
 
 - `test/run.sh` — runs every end-to-end case; exits non-zero on any
