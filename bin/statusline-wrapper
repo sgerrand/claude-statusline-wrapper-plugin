@@ -22,6 +22,58 @@ sw_cleanup() {
 }
 trap sw_cleanup EXIT
 
+case "${1:-}" in
+  --version)
+    jq -r '.version // "unknown"' "$PLUGIN_ROOT/.claude-plugin/plugin.json" 2>/dev/null || echo unknown
+    exit 0
+    ;;
+  --help)
+    cat <<'EOF'
+Usage: statusline-wrapper [--version | --diag | --help]
+
+With no flags, reads a JSON status object on stdin (as Claude Code
+provides) and prints a single composed statusline on stdout.
+
+  --version  Print plugin version and exit.
+  --diag     Print configuration and environment diagnostics and exit.
+             Does not read stdin and does not run any source.
+  --help     Print this help and exit.
+EOF
+    exit 0
+    ;;
+  --diag)
+    printf 'plugin_version: '
+    jq -r '.version // "unknown"' "$PLUGIN_ROOT/.claude-plugin/plugin.json" 2>/dev/null || echo unknown
+    printf 'plugin_root: %s\n' "$PLUGIN_ROOT"
+    printf 'config_path: %s\n' "$SW_CONFIG_PATH"
+    printf 'log_path: %s\n' "$SW_LOG_PATH"
+    printf 'jq: %s\n' "$(command -v jq 2>/dev/null || echo '(not found)')"
+    printf 'timeout: %s\n' "$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo '(not found)')"
+    if sw_load_config 2>/dev/null; then
+      printf 'config_loaded: yes\n'
+      printf 'separator: %q\n' "$SW_SEPARATOR"
+      printf 'defaultTimeoutMs: %s\n' "$SW_DEFAULT_TIMEOUT_MS"
+      printf 'onError: %s\n' "$SW_ON_ERROR"
+      printf 'fallback: %s\n' "$SW_FALLBACK"
+      if [[ -n "${SW_SOURCES_TSV:-}" ]]; then
+        printf 'sources:\n'
+        printf '%s\n' "$SW_SOURCES_TSV" | awk -F'\t' '{ printf "  - id=%s label=%s timeoutMs=%s passStdin=%s command=%s\n", $1, $2, $4, $5, $3 }'
+      else
+        printf 'sources: (none)\n'
+      fi
+    else
+      printf 'config_loaded: no — see %s\n' "$SW_LOG_PATH"
+    fi
+    exit 0
+    ;;
+  '')
+    ;;
+  *)
+    printf '[statusline-wrapper] unknown flag: %s (try --help)\n' "$1" >&2
+    exit 2
+    ;;
+esac
+
 stdin_file=$(mktemp)
 SW_TMPS+=("$stdin_file")
 cat >"$stdin_file"

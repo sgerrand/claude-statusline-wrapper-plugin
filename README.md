@@ -118,6 +118,19 @@ and falls back to the built-in default source.
 | `sources[].timeoutMs` | inherits `defaultTimeoutMs` | per-source ceiling; must be a positive JSON number |
 | `sources[].passStdin` | `true` | `false` redirects the source's stdin to `/dev/null` |
 
+## CLI flags
+
+For debugging, the wrapper also accepts:
+
+```sh
+bin/statusline-wrapper --version   # prints the manifest version
+bin/statusline-wrapper --diag      # prints config + environment diagnostics
+bin/statusline-wrapper --help      # usage summary
+```
+
+`--diag` does not read stdin and does not run any source — safe to
+invoke from a terminal when investigating a misconfigured statusline.
+
 ## How it runs
 
 `bin/statusline-wrapper`:
