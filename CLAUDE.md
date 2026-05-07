@@ -82,6 +82,11 @@ each other.
 - **`stat`** flags differ between BSD (macOS) and GNU. The log rotator
   in `config.sh` tries `-f%z` then `-c%s`. Mirror that pattern if you
   add another size check.
+- **Log rotation uses a `mkdir`-based mutex** at `${SW_LOG_PATH}.lock`
+  (atomic on every POSIX fs, no `flock` dependency). Stale locks older
+  than one minute are reaped before claiming. If a wrapper crashes
+  mid-rotate the next invocation cleans up; we do not hold the lock
+  during the actual append, only during the `mv`.
 - **`passStdin: false` redirects to `/dev/null`** — and an empty stdout
   with exit 0 is *intentionally* dropped (treated as "this source had
   nothing to say"), not flagged as an error. Tests using this pattern
