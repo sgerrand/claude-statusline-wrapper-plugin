@@ -65,11 +65,11 @@ sw_compose() {
 
   wait
 
+  local max_bytes="${SW_MAX_BYTES:-4096}"
   local -a parts=()
-  local j rc out
+  local j rc out sz
   for ((j = 0; j < i; j++)); do
     rc=$(cat "$tmpdir/$j.rc" 2>/dev/null || echo 1)
-    out=$(cat "$tmpdir/$j.out" 2>/dev/null || true)
     if [[ "$rc" != "0" ]]; then
       sw_log "source ${ids[j]} exit=$rc"
       case "${SW_ON_ERROR:-silent}" in
@@ -79,8 +79,23 @@ sw_compose() {
       esac
       continue
     fi
+    if [[ -e "$tmpdir/$j.out" ]]; then
+      sz=$(stat -f%z "$tmpdir/$j.out" 2>/dev/null || stat -c%s "$tmpdir/$j.out" 2>/dev/null || echo 0)
+      if (( sz > max_bytes )); then
+        sw_log "source ${ids[j]} emitted $sz bytes; truncating to $max_bytes"
+        out=$(head -c "$max_bytes" "$tmpdir/$j.out")
+      else
+        out=$(cat "$tmpdir/$j.out")
+      fi
+    else
+      out=""
+    fi
     [[ -z "$out" ]] && continue
     out="${out%$'\n'}"
+    if [[ "$out" == *$'\n'* ]]; then
+      sw_log "source ${ids[j]} emitted multi-line output; using first line only"
+      out="${out%%$'\n'*}"
+    fi
     parts+=("$out")
   done
 

@@ -190,6 +190,26 @@ run "fallback-empty-emits-nothing" \
   '{"version":1,"fallback":"empty","sources":[]}' \
   ''
 
+# Slice 3: E — multi-line source output is truncated at the first
+# newline with a log warning.
+run "multi-line-source-output-truncated" \
+  "$(printf '{"version":1,"separator":" | ","sources":[
+     {"id":"a","command":"bash %s","order":10},
+     {"id":"b","command":"echo tail","order":20}
+   ]}' "$FAKES/two-lines.sh")" \
+  'first | tail'
+
+# Slice 3: D — output exceeding SW_MAX_BYTES is truncated. Use a small
+# cap so the test does not need to emit megabytes.
+export SW_MAX_BYTES=8
+run "byte-cap-truncates-output" \
+  '{"version":1,"separator":" | ","sources":[
+     {"id":"big","command":"printf %.0sA {1..50}","order":10},
+     {"id":"tail","command":"echo end","order":20}
+   ]}' \
+  'AAAAAAAA | end'
+unset SW_MAX_BYTES
+
 # Slice 2: J — symlinked config file is refused, wrapper falls back to
 # the default source and emits the diagnostic line.
 ln -sf "$TMP/symlink-target.json" "$TMP/symlink.json"

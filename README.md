@@ -82,7 +82,9 @@ Each source command:
 - receives the Claude Code statusline JSON on stdin (unless
   `passStdin: false`);
 - must write its piece of the statusline to stdout (single line, ANSI +
-  OSC 8 hyperlinks OK);
+  OSC 8 hyperlinks OK; output longer than `SW_MAX_BYTES` (default 4 KiB)
+  is truncated, and embedded newlines are cut at the first one with a
+  log warning);
 - must finish within `timeoutMs` (default 200, falls back to
   `defaultTimeoutMs` when absent);
 - empty stdout with exit 0 is treated as an intentional empty slot and
