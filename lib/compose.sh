@@ -41,8 +41,8 @@ sw_compose() {
     [[ -z "${command:-}" ]] && continue
     ids[i]="$id"
     labels[i]="$label"
-    local timeout_s
-    timeout_s=$(awk -v ms="${timeoutMs:-200}" 'BEGIN{ printf "%.3f", ms/1000 }')
+    local timeout_s ms="${timeoutMs:-200}"
+    printf -v timeout_s '%d.%03d' $((ms / 1000)) $((ms % 1000))
     (
       local rc=0
       if [[ "$passStdin" == "1" ]]; then
