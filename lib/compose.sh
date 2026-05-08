@@ -80,7 +80,7 @@ sw_compose() {
       continue
     fi
     if [[ -e "$tmpdir/$j.out" ]]; then
-      sz=$(stat -f%z "$tmpdir/$j.out" 2>/dev/null || stat -c%s "$tmpdir/$j.out" 2>/dev/null || echo 0)
+      sz=$(sw_stat_size "$tmpdir/$j.out")
       if (( sz > max_bytes )); then
         sw_log "source ${ids[j]} emitted $sz bytes; truncating to $max_bytes"
         out=$(head -c "$max_bytes" "$tmpdir/$j.out")

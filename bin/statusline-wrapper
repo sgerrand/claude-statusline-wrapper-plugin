@@ -97,7 +97,7 @@ if (( SW_CACHE_TTL_S > 0 )) && command -v jq >/dev/null 2>&1; then
   if [[ -n "$cache_key" ]]; then
     cache_file="$SW_CACHE_DIR/$cache_key"
     if [[ -e "$cache_file" ]]; then
-      mtime=$(stat -f%m "$cache_file" 2>/dev/null || stat -c%Y "$cache_file" 2>/dev/null || echo 0)
+      mtime=$(sw_stat_mtime "$cache_file")
       now=$(date +%s)
       if (( now - mtime < SW_CACHE_TTL_S )); then
         cat "$cache_file"

@@ -17,11 +17,21 @@ SW_CONFIG_PATH="${SW_CONFIG_PATH:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/statusline
 SW_LOG_PATH="${SW_LOG_PATH:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/statusline-wrapper.log}"
 SW_LOG_MAX_BYTES="${SW_LOG_MAX_BYTES:-65536}"
 
+# stat(1) flag pairs differ between BSD (macOS) and GNU. Helpers try BSD
+# first, fall back to GNU, echo 0 on failure. Callers must tolerate 0.
+sw_stat_size() {
+  stat -f%z "$1" 2>/dev/null || stat -c%s "$1" 2>/dev/null || echo 0
+}
+
+sw_stat_mtime() {
+  stat -f%m "$1" 2>/dev/null || stat -c%Y "$1" 2>/dev/null || echo 0
+}
+
 sw_log() {
   local msg="$*"
   if [[ -e "$SW_LOG_PATH" ]]; then
     local sz
-    sz=$(stat -f%z "$SW_LOG_PATH" 2>/dev/null || stat -c%s "$SW_LOG_PATH" 2>/dev/null || echo 0)
+    sz=$(sw_stat_size "$SW_LOG_PATH")
     if (( sz > SW_LOG_MAX_BYTES )); then
       local lock="${SW_LOG_PATH}.lock"
       if [[ -d "$lock" && -z "$(find "$lock" -maxdepth 0 -mmin -1 2>/dev/null)" ]]; then
