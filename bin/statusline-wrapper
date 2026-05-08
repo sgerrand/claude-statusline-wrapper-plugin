@@ -78,20 +78,22 @@ stdin_file=$(mktemp)
 SW_TMPS+=("$stdin_file")
 cat >"$stdin_file"
 
-# Output cache. Keyed by stable JSON fields; TTL in seconds (0 disables).
-# The cache write happens after compose; a cache hit short-circuits both
-# config load and compose, since the cached output is the final line.
+# Output cache. Keyed by stable JSON fields plus config mtime so editing
+# the config invalidates cached output immediately. TTL in seconds
+# (0 disables). A cache hit short-circuits both config load and compose.
 SW_CACHE_TTL_S="${SW_CACHE_TTL_S:-1}"
 SW_CACHE_DIR="${SW_CACHE_DIR:-${TMPDIR:-/tmp}/statusline-wrapper-${UID:-$(id -u)}}"
 cache_key=""
 cache_file=""
 if (( SW_CACHE_TTL_S > 0 )) && command -v jq >/dev/null 2>&1; then
-  cache_key=$(jq -r '
+  cfg_mtime=$(sw_stat_mtime "$SW_CONFIG_PATH")
+  cache_key=$(jq -r --arg cfg "$cfg_mtime" '
     [
       (.session_id // ""),
       (.model.display_name // ""),
       (.workspace.current_dir // .cwd // ""),
-      ((.context_window.used_percentage // 0) | floor)
+      ((.context_window.used_percentage // 0) | floor),
+      $cfg
     ] | @tsv
   ' <"$stdin_file" 2>/dev/null | shasum -a 256 2>/dev/null | awk '{print $1}')
   if [[ -n "$cache_key" ]]; then
@@ -115,7 +117,13 @@ emit() {
   local out="$1"
   if [[ -n "$cache_file" ]]; then
     mkdir -p "$SW_CACHE_DIR" 2>/dev/null
-    printf '%s' "$out" >"${cache_file}.tmp" 2>/dev/null && mv "${cache_file}.tmp" "$cache_file" 2>/dev/null
+    # Per-writer tmp name so concurrent invocations cannot interleave
+    # writes into the same .tmp file before mv.
+    local tmp
+    if tmp=$(mktemp "${cache_file}.XXXXXX" 2>/dev/null); then
+      printf '%s' "$out" >"$tmp" 2>/dev/null && mv -f "$tmp" "$cache_file" 2>/dev/null
+      rm -f "$tmp" 2>/dev/null
+    fi
   fi
   printf '%s' "$out"
 }

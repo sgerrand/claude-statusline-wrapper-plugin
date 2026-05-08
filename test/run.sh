@@ -234,21 +234,40 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-# Slice 8: K — cache hit serves the previously-cached output even after
-# the config changes, until the TTL expires.
+# Cache hit serves the previously-cached output when the config has not
+# changed and the TTL has not expired. Run the wrapper twice with the
+# same config; both invocations must return the cached "first".
 cache_dir="$TMP/cache-hit-test"
 cfg="$TMP/cache-hit.json"
 printf '%s' '{"version":1,"sources":[{"id":"a","command":"echo first","order":10}]}' >"$cfg"
 first=$(SW_CACHE_TTL_S=10 SW_CACHE_DIR="$cache_dir" \
   SW_CONFIG_PATH="$cfg" SW_LOG_PATH="$TMP/log" "$WRAPPER" <"$FIXTURE" 2>/dev/null)
-printf '%s' '{"version":1,"sources":[{"id":"a","command":"echo second","order":10}]}' >"$cfg"
 second=$(SW_CACHE_TTL_S=10 SW_CACHE_DIR="$cache_dir" \
   SW_CONFIG_PATH="$cfg" SW_LOG_PATH="$TMP/log" "$WRAPPER" <"$FIXTURE" 2>/dev/null)
 if [[ "$first" == "first" && "$second" == "first" ]]; then
-  printf 'PASS cache-hit-serves-stale-within-ttl\n'
+  printf 'PASS cache-hit-serves-cached-output-within-ttl\n'
   PASS=$((PASS + 1))
 else
-  printf 'FAIL cache-hit-serves-stale-within-ttl\n  first:  %q\n  second: %q\n' "$first" "$second"
+  printf 'FAIL cache-hit-serves-cached-output-within-ttl\n  first:  %q\n  second: %q\n' "$first" "$second"
+  FAIL=$((FAIL + 1))
+fi
+
+# Cache key includes config mtime: editing the config invalidates the
+# cache immediately, even within TTL.
+cache_dir="$TMP/cache-invalidate-test"
+cfg="$TMP/cache-invalidate.json"
+printf '%s' '{"version":1,"sources":[{"id":"a","command":"echo first","order":10}]}' >"$cfg"
+first=$(SW_CACHE_TTL_S=10 SW_CACHE_DIR="$cache_dir" \
+  SW_CONFIG_PATH="$cfg" SW_LOG_PATH="$TMP/log" "$WRAPPER" <"$FIXTURE" 2>/dev/null)
+sleep 1  # ensure mtime tick on filesystems with 1s resolution
+printf '%s' '{"version":1,"sources":[{"id":"a","command":"echo second","order":10}]}' >"$cfg"
+second=$(SW_CACHE_TTL_S=10 SW_CACHE_DIR="$cache_dir" \
+  SW_CONFIG_PATH="$cfg" SW_LOG_PATH="$TMP/log" "$WRAPPER" <"$FIXTURE" 2>/dev/null)
+if [[ "$first" == "first" && "$second" == "second" ]]; then
+  printf 'PASS cache-config-change-invalidates\n'
+  PASS=$((PASS + 1))
+else
+  printf 'FAIL cache-config-change-invalidates\n  first:  %q\n  second: %q\n' "$first" "$second"
   FAIL=$((FAIL + 1))
 fi
 
