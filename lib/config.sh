@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash disable=SC2034
+# SW_SEPARATOR / SW_SOURCES_TSV / SW_*_MS look unused to shellcheck because
+# they are consumed by lib/compose.sh after sourcing. Disabled file-wide.
+
 # Config loader and logging helpers for statusline-wrapper.
 #
 # Sourced by bin/statusline-wrapper. Calling sw_load_config sets:

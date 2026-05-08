@@ -154,10 +154,10 @@ Wall time is `max(source_i)`, not `sum`. Keep individual sources fast
 test/run.sh
 ```
 
-Drives the wrapper end-to-end against ten cases: starter-config
-bootstrap, ordering, silent vs labeled errors, timeout enforcement,
-empty-output handling, `passStdin` routing, ANSI preservation, and
-disabled-source skipping. Exits non-zero on any failure.
+Drives the wrapper end-to-end against the harness in `test/run.sh`.
+Exits non-zero on any failure. CI (GitHub Actions, see
+`.github/workflows/ci.yml`) runs `shellcheck -x` and the test suite on
+both Ubuntu and macOS on every push and pull request.
 
 ## Status
 

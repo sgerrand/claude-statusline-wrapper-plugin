@@ -9,9 +9,9 @@ set -uo pipefail
 
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
-# shellcheck source=../lib/config.sh
+# shellcheck source=lib/config.sh
 source "$PLUGIN_ROOT/lib/config.sh"
-# shellcheck source=../lib/compose.sh
+# shellcheck source=lib/compose.sh
 source "$PLUGIN_ROOT/lib/compose.sh"
 
 SW_TMPS=()
