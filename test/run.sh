@@ -296,5 +296,51 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# CLI flag coverage: --version, --help, --diag, unknown.
+
+expected_version=$(jq -r '.version' "$ROOT/.claude-plugin/plugin.json")
+actual_version=$("$WRAPPER" --version 2>/dev/null)
+if [[ "$actual_version" == "$expected_version" ]]; then
+  printf 'PASS flag-version\n'
+  PASS=$((PASS + 1))
+else
+  printf 'FAIL flag-version\n  expected: %q\n  actual:   %q\n' "$expected_version" "$actual_version"
+  FAIL=$((FAIL + 1))
+fi
+
+help_out=$("$WRAPPER" --help 2>/dev/null)
+if [[ "$help_out" == *"Usage:"* && "$help_out" == *"--diag"* && "$help_out" == *"--version"* ]]; then
+  printf 'PASS flag-help\n'
+  PASS=$((PASS + 1))
+else
+  printf 'FAIL flag-help\n  output: %q\n' "$help_out"
+  FAIL=$((FAIL + 1))
+fi
+
+diag_cfg="$TMP/diag.json"
+printf '%s' '{"version":1,"separator":" | ","sources":[{"id":"a","command":"echo hi","order":10}]}' >"$diag_cfg"
+diag_out=$(SW_CONFIG_PATH="$diag_cfg" SW_LOG_PATH="$TMP/diag.log" "$WRAPPER" --diag 2>/dev/null)
+if [[ "$diag_out" == *"plugin_version:"* \
+      && "$diag_out" == *"config_path: $diag_cfg"* \
+      && "$diag_out" == *"config_loaded: yes"* \
+      && "$diag_out" == *"id=a"* ]]; then
+  printf 'PASS flag-diag\n'
+  PASS=$((PASS + 1))
+else
+  printf 'FAIL flag-diag\n  output: %q\n' "$diag_out"
+  FAIL=$((FAIL + 1))
+fi
+
+unknown_stderr=$("$WRAPPER" --bogus 2>&1 >/dev/null)
+unknown_rc=0
+"$WRAPPER" --bogus </dev/null >/dev/null 2>/dev/null || unknown_rc=$?
+if [[ "$unknown_stderr" == *"unknown flag"* && "$unknown_rc" == "2" ]]; then
+  printf 'PASS flag-unknown-rejected\n'
+  PASS=$((PASS + 1))
+else
+  printf 'FAIL flag-unknown-rejected\n  stderr: %q\n  rc: %s\n' "$unknown_stderr" "$unknown_rc"
+  FAIL=$((FAIL + 1))
+fi
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
