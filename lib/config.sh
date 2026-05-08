@@ -84,6 +84,12 @@ sw_load_config() {
     sw_log "config is not valid JSON: $SW_CONFIG_PATH"
     return 1
   fi
+  local schema_version
+  schema_version=$(jq -r '.version // 1' "$SW_CONFIG_PATH")
+  if [[ "$schema_version" != "1" ]]; then
+    sw_log "unsupported config schema version $schema_version (expected 1)"
+    return 1
+  fi
   SW_SEPARATOR=$(jq -r '.separator // " "' "$SW_CONFIG_PATH")
   if ! SW_DEFAULT_TIMEOUT_MS=$(jq -er '
     (.defaultTimeoutMs // 200)

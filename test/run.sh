@@ -181,6 +181,13 @@ run_with_stderr "malformed-json-config" \
   'Opus 4.7 | foo | 42% ctx' \
   'config load failed'
 
+# Unsupported schema version is rejected at load (forward-compat
+# guard for future breaking config changes).
+run_with_stderr "unsupported-schema-version-rejected" \
+  '{"version":2,"sources":[{"id":"a","command":"echo hi","order":10}]}' \
+  'Opus 4.7 | foo | 42% ctx' \
+  'config load failed'
+
 # Slice 2: G — invalid onError downgrades to silent (failed source is
 # omitted, surviving source still renders).
 run "invalid-onError-falls-back-to-silent" \
