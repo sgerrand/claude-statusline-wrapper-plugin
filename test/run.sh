@@ -16,6 +16,11 @@ FAKES="$ROOT/test/fakes"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
+# All cases share one fixture, which would collide on the cache key.
+# Cases that exercise caching set SW_CACHE_TTL_S explicitly.
+export SW_CACHE_TTL_S=0
+export SW_CACHE_DIR="$TMP/cache"
+
 PASS=0
 FAIL=0
 
@@ -226,6 +231,42 @@ if [[ "$symlink_stdout" == 'Opus 4.7 | foo | 42% ctx' \
 else
   printf 'FAIL symlink-config-refused\n  stdout: %q\n  stderr: %q\n' \
     "$symlink_stdout" "$symlink_stderr"
+  FAIL=$((FAIL + 1))
+fi
+
+# Slice 8: K — cache hit serves the previously-cached output even after
+# the config changes, until the TTL expires.
+cache_dir="$TMP/cache-hit-test"
+cfg="$TMP/cache-hit.json"
+printf '%s' '{"version":1,"sources":[{"id":"a","command":"echo first","order":10}]}' >"$cfg"
+first=$(SW_CACHE_TTL_S=10 SW_CACHE_DIR="$cache_dir" \
+  SW_CONFIG_PATH="$cfg" SW_LOG_PATH="$TMP/log" "$WRAPPER" <"$FIXTURE" 2>/dev/null)
+printf '%s' '{"version":1,"sources":[{"id":"a","command":"echo second","order":10}]}' >"$cfg"
+second=$(SW_CACHE_TTL_S=10 SW_CACHE_DIR="$cache_dir" \
+  SW_CONFIG_PATH="$cfg" SW_LOG_PATH="$TMP/log" "$WRAPPER" <"$FIXTURE" 2>/dev/null)
+if [[ "$first" == "first" && "$second" == "first" ]]; then
+  printf 'PASS cache-hit-serves-stale-within-ttl\n'
+  PASS=$((PASS + 1))
+else
+  printf 'FAIL cache-hit-serves-stale-within-ttl\n  first:  %q\n  second: %q\n' "$first" "$second"
+  FAIL=$((FAIL + 1))
+fi
+
+# Slice 8: K — cache TTL=0 disables caching entirely.
+cache_dir="$TMP/cache-disabled-test"
+cfg="$TMP/cache-disabled.json"
+printf '%s' '{"version":1,"sources":[{"id":"a","command":"echo first","order":10}]}' >"$cfg"
+first=$(SW_CACHE_TTL_S=0 SW_CACHE_DIR="$cache_dir" \
+  SW_CONFIG_PATH="$cfg" SW_LOG_PATH="$TMP/log" "$WRAPPER" <"$FIXTURE" 2>/dev/null)
+printf '%s' '{"version":1,"sources":[{"id":"a","command":"echo second","order":10}]}' >"$cfg"
+second=$(SW_CACHE_TTL_S=0 SW_CACHE_DIR="$cache_dir" \
+  SW_CONFIG_PATH="$cfg" SW_LOG_PATH="$TMP/log" "$WRAPPER" <"$FIXTURE" 2>/dev/null)
+if [[ "$first" == "first" && "$second" == "second" && ! -d "$cache_dir" ]]; then
+  printf 'PASS cache-ttl-zero-disables-caching\n'
+  PASS=$((PASS + 1))
+else
+  printf 'FAIL cache-ttl-zero-disables-caching\n  first:  %q\n  second: %q\n  cache_dir exists: %s\n' \
+    "$first" "$second" "$([[ -d $cache_dir ]] && echo yes || echo no)"
   FAIL=$((FAIL + 1))
 fi
 

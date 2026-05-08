@@ -78,25 +78,65 @@ stdin_file=$(mktemp)
 SW_TMPS+=("$stdin_file")
 cat >"$stdin_file"
 
+# Output cache. Keyed by stable JSON fields; TTL in seconds (0 disables).
+# The cache write happens after compose; a cache hit short-circuits both
+# config load and compose, since the cached output is the final line.
+SW_CACHE_TTL_S="${SW_CACHE_TTL_S:-1}"
+SW_CACHE_DIR="${SW_CACHE_DIR:-${TMPDIR:-/tmp}/statusline-wrapper-${UID:-$(id -u)}}"
+cache_key=""
+cache_file=""
+if (( SW_CACHE_TTL_S > 0 )) && command -v jq >/dev/null 2>&1; then
+  cache_key=$(jq -r '
+    [
+      (.session_id // ""),
+      (.model.display_name // ""),
+      (.workspace.current_dir // .cwd // ""),
+      ((.context_window.used_percentage // 0) | floor)
+    ] | @tsv
+  ' <"$stdin_file" 2>/dev/null | shasum -a 256 2>/dev/null | awk '{print $1}')
+  if [[ -n "$cache_key" ]]; then
+    cache_file="$SW_CACHE_DIR/$cache_key"
+    if [[ -e "$cache_file" ]]; then
+      mtime=$(stat -f%m "$cache_file" 2>/dev/null || stat -c%Y "$cache_file" 2>/dev/null || echo 0)
+      now=$(date +%s)
+      if (( now - mtime < SW_CACHE_TTL_S )); then
+        cat "$cache_file"
+        exit 0
+      fi
+    fi
+  fi
+fi
+
 run_default() {
   bash "$PLUGIN_ROOT/lib/default-source.sh" <"$stdin_file"
 }
 
+emit() {
+  local out="$1"
+  if [[ -n "$cache_file" ]]; then
+    mkdir -p "$SW_CACHE_DIR" 2>/dev/null
+    printf '%s' "$out" >"${cache_file}.tmp" 2>/dev/null && mv "${cache_file}.tmp" "$cache_file" 2>/dev/null
+  fi
+  printf '%s' "$out"
+}
+
 if ! sw_load_config; then
   printf '[statusline-wrapper] config load failed — see %s\n' "$SW_LOG_PATH" >&2
-  run_default
+  emit "$(run_default)"$'\n'
   exit 0
 fi
 
 if [[ -z "${SW_SOURCES_TSV:-}" ]]; then
   if [[ "${SW_FALLBACK:-default}" == "default" ]]; then
-    run_default
+    emit "$(run_default)"$'\n'
   fi
   exit 0
 fi
 
-if ! sw_compose "$stdin_file"; then
+if compose_out=$(sw_compose "$stdin_file"); then
+  emit "$compose_out"$'\n'
+else
   if [[ "${SW_FALLBACK:-default}" == "default" ]]; then
-    run_default
+    emit "$(run_default)"$'\n'
   fi
 fi

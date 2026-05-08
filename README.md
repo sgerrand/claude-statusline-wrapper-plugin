@@ -148,6 +148,16 @@ invoke from a terminal when investigating a misconfigured statusline.
 Wall time is `max(source_i)`, not `sum`. Keep individual sources fast
 (<50 ms) and avoid Node/Python cold starts on the render path.
 
+### Output cache
+
+The composed line is cached for 1 s by default, keyed by
+`(session_id, model.display_name, workspace.current_dir,
+floor(context_window.used_percentage))`. A cache hit short-circuits
+both config load and composition — typical warm-render latency drops
+to ~5–60 ms on the same input. Set `SW_CACHE_TTL_S=0` to disable, or
+`SW_CACHE_DIR` to relocate the cache (default
+`${TMPDIR:-/tmp}/statusline-wrapper-${UID}`).
+
 ## Tests
 
 ```sh

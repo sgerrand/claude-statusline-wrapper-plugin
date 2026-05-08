@@ -103,6 +103,18 @@ each other.
   source, and `bin/statusline-wrapper` prints `[statusline-wrapper]
   config load failed — see <log>` to stderr.
 
+## Output cache
+
+The wrapper caches its final output line for `SW_CACHE_TTL_S` seconds
+(default 1) under `SW_CACHE_DIR` (default
+`${TMPDIR:-/tmp}/statusline-wrapper-${UID}`). The key is a SHA-256 over
+`session_id`, `model.display_name`, `workspace.current_dir`, and
+`floor(used_percentage)`. A hit short-circuits before config load and
+composition, so cache pollution risks are real — when the harness runs
+many cases against one fixture, the test runner forces
+`SW_CACHE_TTL_S=0`. The plan-original per-source `cache: false` opt-out
+is **not** implemented; only the global env knobs exist today.
+
 ## Testing pattern
 
 `test/run.sh` is a single bash file with a `run` helper. Each case is
