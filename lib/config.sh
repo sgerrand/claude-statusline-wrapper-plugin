@@ -64,7 +64,23 @@ sw_load_config() {
     return 1
   fi
   SW_SEPARATOR=$(jq -r '.separator // " "' "$SW_CONFIG_PATH")
-  SW_DEFAULT_TIMEOUT_MS=$(jq -r '.defaultTimeoutMs // 200' "$SW_CONFIG_PATH")
+  if ! SW_DEFAULT_TIMEOUT_MS=$(jq -er '
+    (.defaultTimeoutMs // 200)
+    | if type != "number" or . <= 0 then
+        error("defaultTimeoutMs must be a positive number, got " + (. | tojson))
+      else . end
+  ' "$SW_CONFIG_PATH" 2>/dev/null); then
+    sw_log "invalid defaultTimeoutMs in $SW_CONFIG_PATH"
+    return 1
+  fi
+  if ! jq -e --argjson defaultT "$SW_DEFAULT_TIMEOUT_MS" '
+    (.sources // [])
+    | map(select(.enabled != false) | (.timeoutMs // $defaultT))
+    | all(type == "number" and . > 0)
+  ' "$SW_CONFIG_PATH" >/dev/null 2>&1; then
+    sw_log "one or more source timeoutMs values are not positive numbers"
+    return 1
+  fi
   SW_ON_ERROR=$(jq -r '.onError // "silent"' "$SW_CONFIG_PATH")
   SW_FALLBACK=$(jq -r '.fallback // "default"' "$SW_CONFIG_PATH")
   SW_SOURCES_TSV=$(jq -r --argjson defaultT "$SW_DEFAULT_TIMEOUT_MS" '

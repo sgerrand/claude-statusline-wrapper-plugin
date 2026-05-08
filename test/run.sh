@@ -36,6 +36,49 @@ run() {
   fi
 }
 
+# Like run, but also asserts that stderr contains a substring. Use for
+# load-failure cases that should both fall back AND emit a diagnostic
+# line.
+run_with_stderr() {
+  local name="$1"
+  local cfg_json="$2"
+  local expected_stdout="$3"
+  local expected_stderr_substring="$4"
+  local cfg="$TMP/$name.json"
+  printf '%s' "$cfg_json" >"$cfg"
+  local stdout_file="$TMP/$name.stdout"
+  local stderr_file="$TMP/$name.stderr"
+  SW_CONFIG_PATH="$cfg" SW_LOG_PATH="$TMP/log" "$WRAPPER" <"$FIXTURE" >"$stdout_file" 2>"$stderr_file"
+  local actual_stdout actual_stderr
+  actual_stdout=$(cat "$stdout_file")
+  actual_stderr=$(cat "$stderr_file")
+  if [[ "$actual_stdout" == "$expected_stdout" && "$actual_stderr" == *"$expected_stderr_substring"* ]]; then
+    printf 'PASS %s\n' "$name"
+    PASS=$((PASS + 1))
+  else
+    printf 'FAIL %s\n  stdout expected: %q\n  stdout actual:   %q\n  stderr substring expected: %q\n  stderr actual:   %q\n' \
+      "$name" "$expected_stdout" "$actual_stdout" "$expected_stderr_substring" "$actual_stderr"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+# Like run, but uses a config that already exists at a non-default path
+# (skips the starter-config write step which would overwrite the file).
+run_existing() {
+  local name="$1"
+  local cfg_path="$2"
+  local expected="$3"
+  local actual
+  actual=$(SW_CONFIG_PATH="$cfg_path" SW_LOG_PATH="$TMP/log" "$WRAPPER" <"$FIXTURE" 2>/dev/null)
+  if [[ "$actual" == "$expected" ]]; then
+    printf 'PASS %s\n' "$name"
+    PASS=$((PASS + 1))
+  else
+    printf 'FAIL %s\n  expected: %q\n  actual:   %q\n' "$name" "$expected" "$actual"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
 run "empty-fallback" \
   '{"version":1,"separator":" | ","fallback":"default","sources":[]}' \
   'Opus 4.7 | foo | 42% ctx'
@@ -107,6 +150,31 @@ run "disabled-source-skipped" \
      {"id":"c","command":"echo last","order":20}
    ]}' \
   'first | last'
+
+# Slice 1: A — defaultTimeoutMs as a string crashes --argjson; reject at
+# load and fall back, with a stderr diagnostic.
+run_with_stderr "defaultTimeoutMs-string-rejected" \
+  '{"version":1,"defaultTimeoutMs":"200","sources":[{"id":"a","command":"echo hi","order":10}]}' \
+  'Opus 4.7 | foo | 42% ctx' \
+  'config load failed'
+
+# Slice 1: B — per-source timeoutMs as a string is rejected at load.
+run_with_stderr "source-timeoutMs-string-rejected" \
+  '{"version":1,"sources":[{"id":"a","command":"echo hi","timeoutMs":"100","order":10}]}' \
+  'Opus 4.7 | foo | 42% ctx' \
+  'config load failed'
+
+# Slice 1: A — zero or negative defaultTimeoutMs is rejected.
+run_with_stderr "defaultTimeoutMs-zero-rejected" \
+  '{"version":1,"defaultTimeoutMs":0,"sources":[{"id":"a","command":"echo hi","order":10}]}' \
+  'Opus 4.7 | foo | 42% ctx' \
+  'config load failed'
+
+# Slice 1: C — malformed JSON triggers fallback + stderr line.
+run_with_stderr "malformed-json-config" \
+  '{not valid json' \
+  'Opus 4.7 | foo | 42% ctx' \
+  'config load failed'
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

@@ -86,6 +86,12 @@ each other.
   with exit 0 is *intentionally* dropped (treated as "this source had
   nothing to say"), not flagged as an error. Tests using this pattern
   must assert via a fake that *prints* something, not via absence.
+- **Numeric fields must be JSON numbers, not strings.**
+  `defaultTimeoutMs` and per-source `timeoutMs` are validated at config
+  load via `jq -er` with a `type == "number" and . > 0` guard. A string
+  `"200"` is rejected, the wrapper logs and falls back to the default
+  source, and `bin/statusline-wrapper` prints `[statusline-wrapper]
+  config load failed — see <log>` to stderr.
 
 ## Testing pattern
 

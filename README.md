@@ -93,7 +93,11 @@ Each source command:
   - `placeholder` — slot replaced with `?`.
 
 Stderr from sources is appended to `~/.claude/statusline-wrapper.log`
-(rotated at 64 KB) and never printed to the terminal.
+(rotated at 64 KB) and never printed to the terminal. If the wrapper
+itself cannot load its config (invalid JSON, non-numeric `timeoutMs`,
+missing `jq`, symlinked config file, etc.) it prints a single
+`[statusline-wrapper] config load failed — see <log>` line to stderr
+and falls back to the built-in default source.
 
 ### Field reference
 
@@ -101,7 +105,7 @@ Stderr from sources is appended to `~/.claude/statusline-wrapper.log`
 |---|---|---|
 | `version` | required | currently `1` |
 | `separator` | `" "` | string between source outputs |
-| `defaultTimeoutMs` | `200` | applied when a source omits `timeoutMs` |
+| `defaultTimeoutMs` | `200` | applied when a source omits `timeoutMs`; must be a positive JSON number (string `"200"` is rejected) |
 | `onError` | `"silent"` | `silent` \| `label` \| `placeholder` |
 | `fallback` | `"default"` | when no sources produce output: `default` runs the built-in line; `empty` emits nothing |
 | `sources[].id` | required | stable identifier; used in log lines |
@@ -109,7 +113,7 @@ Stderr from sources is appended to `~/.claude/statusline-wrapper.log`
 | `sources[].command` | required | shell command run via `bash -c` |
 | `sources[].order` | `0` | sparse integers (10, 20, …) recommended |
 | `sources[].enabled` | `true` | set `false` to keep an entry without running it |
-| `sources[].timeoutMs` | inherits `defaultTimeoutMs` | per-source ceiling |
+| `sources[].timeoutMs` | inherits `defaultTimeoutMs` | per-source ceiling; must be a positive JSON number |
 | `sources[].passStdin` | `true` | `false` redirects the source's stdin to `/dev/null` |
 
 ## How it runs
