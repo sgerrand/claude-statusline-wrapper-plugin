@@ -106,8 +106,8 @@ and falls back to the built-in default source.
 | `version` | required | currently `1` |
 | `separator` | `" "` | string between source outputs |
 | `defaultTimeoutMs` | `200` | applied when a source omits `timeoutMs`; must be a positive JSON number (string `"200"` is rejected) |
-| `onError` | `"silent"` | `silent` \| `label` \| `placeholder` |
-| `fallback` | `"default"` | when no sources produce output: `default` runs the built-in line; `empty` emits nothing |
+| `onError` | `"silent"` | `silent` \| `label` \| `placeholder`; unknown values are logged and downgraded to `silent` |
+| `fallback` | `"default"` | when no sources produce output: `default` runs the built-in line; `empty` emits nothing; unknown values downgrade to `default` |
 | `sources[].id` | required | stable identifier; used in log lines |
 | `sources[].label` | falls back to `id` | rendered when `onError: label` |
 | `sources[].command` | required | shell command run via `bash -c` |

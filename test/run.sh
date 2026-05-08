@@ -176,5 +176,38 @@ run_with_stderr "malformed-json-config" \
   'Opus 4.7 | foo | 42% ctx' \
   'config load failed'
 
+# Slice 2: G — invalid onError downgrades to silent (failed source is
+# omitted, surviving source still renders).
+run "invalid-onError-falls-back-to-silent" \
+  '{"version":1,"separator":" | ","onError":"warn","sources":[
+     {"id":"a","command":"echo first","order":10},
+     {"id":"bad","command":"false","order":20}
+   ]}' \
+  'first'
+
+# Slice 2: J — fallback: empty produces no output when no source emits.
+run "fallback-empty-emits-nothing" \
+  '{"version":1,"fallback":"empty","sources":[]}' \
+  ''
+
+# Slice 2: J — symlinked config file is refused, wrapper falls back to
+# the default source and emits the diagnostic line.
+ln -sf "$TMP/symlink-target.json" "$TMP/symlink.json"
+printf '{"version":1,"sources":[]}' >"$TMP/symlink-target.json"
+{
+  symlink_stdout=$(SW_CONFIG_PATH="$TMP/symlink.json" SW_LOG_PATH="$TMP/log" \
+    "$WRAPPER" <"$FIXTURE" 2>"$TMP/symlink.stderr")
+  symlink_stderr=$(cat "$TMP/symlink.stderr")
+}
+if [[ "$symlink_stdout" == 'Opus 4.7 | foo | 42% ctx' \
+      && "$symlink_stderr" == *"config load failed"* ]]; then
+  printf 'PASS symlink-config-refused\n'
+  PASS=$((PASS + 1))
+else
+  printf 'FAIL symlink-config-refused\n  stdout: %q\n  stderr: %q\n' \
+    "$symlink_stdout" "$symlink_stderr"
+  FAIL=$((FAIL + 1))
+fi
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

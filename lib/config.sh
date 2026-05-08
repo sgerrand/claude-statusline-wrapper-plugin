@@ -82,7 +82,21 @@ sw_load_config() {
     return 1
   fi
   SW_ON_ERROR=$(jq -r '.onError // "silent"' "$SW_CONFIG_PATH")
+  case "$SW_ON_ERROR" in
+    silent|label|placeholder) ;;
+    *)
+      sw_log "unknown onError '$SW_ON_ERROR', defaulting to silent"
+      SW_ON_ERROR="silent"
+      ;;
+  esac
   SW_FALLBACK=$(jq -r '.fallback // "default"' "$SW_CONFIG_PATH")
+  case "$SW_FALLBACK" in
+    default|empty) ;;
+    *)
+      sw_log "unknown fallback '$SW_FALLBACK', defaulting to default"
+      SW_FALLBACK="default"
+      ;;
+  esac
   SW_SOURCES_TSV=$(jq -r --argjson defaultT "$SW_DEFAULT_TIMEOUT_MS" '
     (.sources // [])
     | map(select(.enabled != false))
