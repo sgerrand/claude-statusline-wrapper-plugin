@@ -1,6 +1,6 @@
 {
   "name": "statusline-wrapper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Compose statuslines from multiple Claude Code plugins into a single statusLine output.",
   "userConfig": {
     "autoWireSettings": {
